@@ -30,6 +30,7 @@
 
 -behaviour(gen_mod).
 
+-export([start_request_http/2]).
 -export([start/2,
 	 init/2,
 	 stop/1,
@@ -72,12 +73,15 @@ send_notice(From, To, Packet) ->
           "body=", url_encode(binary_to_list(Body)), Sep,
           "access_token=", Token],
         ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Post]),
-        httpc:request(post, {binary_to_list(PostUrl), [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
+        spawn(?MODULE,start_request_http,[PostUrl,Post]),
         ok;
       true ->
         ok
     end.
 
+start_request_http(PostUrl, Post) ->
+    httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
+    exit(normal).
 
 %%% The following url encoding code is from the yaws project and retains it's original license.
 %%% https://github.com/klacke/yaws/blob/master/LICENSE
