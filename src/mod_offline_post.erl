@@ -71,12 +71,15 @@ send_notice(_From, To, Packet) ->
 	    "body=", url_encode(Body), Sep,
 	    "access_token=", Token ],
 	  ?INFO_MSG("Sending post request ~p~n",[Post] ),
-	  httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
+	  spawn(?MODULE,start_request_http,[PostUrl,Post]),
 	  ok;
 	true ->
 	  ok
     end.
 
+start_request_http(PostUrl, Post) ->
+    httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
+    exit(normal).
 
 %%% The following url encoding code is from the yaws project and retains it's original license.
 %%% https://github.com/klacke/yaws/blob/master/LICENSE
