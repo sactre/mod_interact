@@ -30,7 +30,6 @@
 
 -behaviour(gen_mod).
 
--export([start_request_http/2]).
 -export([start/2,
 	 init/2,
 	 stop/1,
@@ -40,7 +39,6 @@
 
 -include("ejabberd.hrl").
 -include("jlib.hrl").
--include("logger.hrl").
 
 start(Host, Opts) ->
     ?INFO_MSG("Starting mod_offline_post", [] ),
@@ -59,29 +57,26 @@ stop(Host) ->
 			  ?MODULE, send_notice, 10),
     ok.
 
-send_notice(From, To, Packet) ->
-    Type = xml:get_tag_attr_s(list_to_binary("type"), Packet),
-    Body = xml:get_path_s(Packet, [{elem, list_to_binary("body")}, cdata]),
-    Token = gen_mod:get_module_opt(To#jid.lserver, ?MODULE, auth_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-    PostUrl = gen_mod:get_module_opt(To#jid.lserver, ?MODULE, post_url, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-
-    if (Type == <<"chat">>) and (Body /= <<"">>) ->
-	      Sep = "&",
-        Post = [
-          "to=", To#jid.luser, Sep,
-          "from=", From#jid.luser, Sep,
-          "body=", url_encode(binary_to_list(Body)), Sep,
-          "access_token=", Token],
-        ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Post]),
-        spawn(?MODULE,start_request_http,[PostUrl,Post]),
-        ok;
-      true ->
-        ok
+send_notice(_From, To, Packet) ->
+    Type = xml:get_tag_attr_s("type", Packet),
+    Body = xml:get_path_s(Packet, [{elem, "body"}, cdata]),
+    Token = gen_mod:get_module_opt(To#jid.lserver, ?MODULE, auth_token, [] ),
+    PostUrl = gen_mod:get_module_opt(To#jid.lserver, ?MODULE, post_url, [] ),
+    if
+	(Type == "chat") and (Body /= "") ->
+	  Sep = "&",
+	  Post = [
+	    "to=", To#jid.luser, Sep,
+	    "from=", _From#jid.luser, Sep,
+	    "body=", url_encode(Body), Sep,
+	    "access_token=", Token ],
+	  ?INFO_MSG("Sending post request ~p~n",[Post] ),
+	  httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
+	  ok;
+	true ->
+	  ok
     end.
 
-start_request_http(PostUrl, Post) ->
-    httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", list_to_binary(Post)},[],[]),
-    exit(normal).
 
 %%% The following url encoding code is from the yaws project and retains it's original license.
 %%% https://github.com/klacke/yaws/blob/master/LICENSE
